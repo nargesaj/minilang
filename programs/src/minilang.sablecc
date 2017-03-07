@@ -1,0 +1,153 @@
+Package minilang;
+
+Helpers
+  all 	= [0..0xffff];
+  tab   = 9;
+  cr    = 13;
+  lf    = 10;
+  digit = ['0'..'9'];
+  non_zero_digit = ['1'..'9'];
+  lowercase = ['a'..'z'];
+  uppercase = ['A'..'Z'];
+
+  letter  = lowercase | uppercase;
+  idletter = letter | '_';
+  idchar  = letter | '_' | digit;
+  comment_chars = [all - [cr + lf]];
+  string_chars = letter | digit | '.' | '?' | '!' | ' ' | ',';
+
+Tokens
+  comment = '#' comment_chars*;
+
+  int = 'int';
+  float = 'float';
+  string = 'string';
+  if   = 'if';
+  then = 'then';
+  endif = 'endif';
+  else  = 'else';
+  semicolon = ';';
+  colon = ':';
+  while = 'while';
+  do = 'do';
+  done = 'done';
+  print = 'print';
+  read = 'read';
+  var = 'var';
+  
+  star  = '*';
+  slash = '/';
+  plus  = '+';
+  minus = '-';
+  l_par = '(';
+  r_par = ')';
+  assign = '=';
+
+  id    = idletter idchar*;
+
+  int_number    = '0' | non_zero_digit digit* ;
+  float_number  = ('0' | non_zero_digit digit*) '.' digit* | '.' digit+ ;
+  str = '"' string_chars* '"' ;
+
+  eol   = cr | lf | cr lf;
+  blank = ' ' | tab;
+
+Ignored Tokens
+  blank, eol, comment;
+
+/*******************************************************************
+ * Productions                                                     *
+ *******************************************************************/
+Productions
+
+prog =
+  {program}	declist* stmtlist*
+     		{-> New prog.program([declist], [stmtlist])};
+
+declist = 
+  {dec}		var id colon type semicolon
+     		{-> New declist.dec(id, type)};
+
+type  = 
+  {int}		int 
+| {float} 	float
+| {string} 	string;
+
+stmtlist =
+  {assignment}  id assign cst_exp semicolon
+		{-> New stmtlist.assignment(id, cst_exp.exp)}
+| {print_exp}	print cst_exp semicolon
+     		{-> New stmtlist.print_exp(cst_exp.exp)}
+| {read_id} 	read id semicolon
+     		{-> New stmtlist.read_id(id)}
+| {if} 		if cst_exp then stmtlist* optional_else? endif
+		{-> New stmtlist.if(cst_exp.exp, [stmtlist], optional_else)}
+| {while}	while cst_exp do stmtlist* done
+		{-> New stmtlist.while(cst_exp.exp, [stmtlist])};
+
+optional_else = 
+  {else} 	else stmtlist*
+		{-> New optional_else.else([stmtlist])};
+
+cst_exp {-> exp} = 
+  {cst_plus}    cst_exp plus factor 
+                {-> New exp.plus(cst_exp.exp,factor.exp)}
+| {cst_minus}   cst_exp minus factor 
+	        {-> New exp.minus(cst_exp.exp,factor.exp)}
+| {factor}      factor {-> factor.exp};
+
+factor {-> exp} =
+  {unary}	unary {-> unary.exp}	
+| {cst_mult}    factor star unary 
+                {-> New exp.mult(factor.exp,unary.exp)}
+| {cst_divd}    factor slash unary 
+                {-> New exp.divd(factor.exp,unary.exp)};
+
+unary {-> exp} =
+  {default}	term {-> term.exp}
+| {minus}	minus unary
+		{-> New exp.uminus(unary.exp)};
+
+term {-> exp} =
+  {paren}       l_par cst_exp r_par {-> cst_exp.exp}
+| {cst_id}      id {-> New exp.id(id)}
+| {cst_int_number}  int_number {-> New exp.int_number(int_number)}
+| {cst_float_number}  float_number {-> New exp.float_number(float_number)}
+| {cst_str}  	str {-> New exp.str(str)};
+
+/*******************************************************************
+ * Abstract Syntax  Tree                                            *
+ *******************************************************************/
+Abstract Syntax Tree
+
+prog = 
+  {program} declist* stmtlist*;
+
+declist = 
+  {dec} id type;
+
+type  = 
+  {int} int 
+| {float} float
+| {string} string;
+
+stmtlist =
+  {assignment}  id exp
+| {print_exp}	exp 
+| {read_id} 	id 
+| {if} 		exp stmtlist* optional_else?
+| {while}	exp stmtlist*;
+
+optional_else = 
+  {else} 	stmtlist*;
+
+exp = 
+  {plus}     [l]:exp [r]:exp 
+| {minus}    [l]:exp [r]:exp
+| {mult}     [l]:exp [r]:exp 
+| {divd}     [l]:exp [r]:exp 
+| {uminus}   exp
+| {id}       id 
+| {int_number}   int_number
+| {float_number}   float_number
+| {str}	     str;	

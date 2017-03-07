@@ -1,0 +1,9 @@
+var x: float;
+
+x = 5.0;
+
+while x do
+  x = x - 1;
+done
+
+
